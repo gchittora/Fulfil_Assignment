@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CSV Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .upload-form {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            text-align: center;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Test CSV Upload</h1>
+    
+    <div class="upload-form">
+        <h2>Upload CSV File</h2>
+        <input type="file" id="fileInput" accept=".csv">
+        <br><br>
+        <button onclick="uploadFile()">Upload and Process</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            resultDiv.innerHTML = '⏳ Uploading...';
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'success';
+                    resultDiv.innerHTML = `
+                        <h3>✅ Upload Successful!</h3>
+                        <p>Task ID: ${data.task_id}</p>
+                        <p>Status: ${data.status}</p>
+                        <button onclick="checkProgress('${data.task_id}')">Check Progress</button>
+                    `;
+                } else {
+                    resultDiv.className = 'error';
+                    resultDiv.innerHTML = `<h3>❌ Upload Failed</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `<h3>❌ Error</h3><p>${error.message}</p>`;
+            }
+        }
+        
+        async function checkProgress(taskId) {
+            const resultDiv = document.getElementById('result');
+            
+            const response = await fetch(`/api/progress/${taskId}`);
+            const data = await response.json();
+            
+            resultDiv.innerHTML = `
+                <h3>📊 Progress</h3>
+                <p>State: ${data.state}</p>
+                <p>Status: ${data.status || 'Processing...'}</p>
+                ${data.current ? `<p>Progress: ${data.current}/${data.total}</p>` : ''}
+                ${data.created ? `<p>Created: ${data.created}, Updated: ${data.updated}, Errors: ${data.errors}</p>` : ''}
+                ${data.state === 'SUCCESS' ? '<p>✅ Complete!</p>' : '<button onclick="checkProgress(\'' + taskId + '\')">Refresh</button>'}
+            `;
+        }
+    </script>
+</body>
+</html>

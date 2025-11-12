@@ -10,7 +10,8 @@ def make_celery():
     celery = Celery(
         'product_importer',
         broker=Config.CELERY_BROKER_URL,
-        backend=Config.CELERY_RESULT_BACKEND
+        backend=Config.CELERY_RESULT_BACKEND,
+        include=['tasks']  # Import tasks module
     )
     
     celery.conf.update(

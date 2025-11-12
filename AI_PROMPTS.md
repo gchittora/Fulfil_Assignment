@@ -314,7 +314,88 @@ Now ready to commit to git and move to Story 2!
 ## Prompt 12: Moving to Story 2 and .env Values
 **User:** "please keep updating AI_PROMPTS.md and yes lets move to Story 2 and please tell me about the .env values when to update and how and where I will get them."
 
-**AI Response:** (Explaining .env values and starting Story 2...)
+**AI Response:**
+
+Explained all .env values in detail:
+
+1. **DATABASE_URL** - PostgreSQL connection string (already correct for local)
+2. **REDIS_URL** - Redis connection string (already correct for local)
+3. **SECRET_KEY** - Generated secure key using `python3 -c "import secrets; print(secrets.token_hex(32))"`
+4. **FLASK_ENV** - Set to development (change to production when deploying)
+5. **FLASK_APP** - Points to app.py (no change needed)
+6. **UPLOAD_FOLDER** - Folder for uploads (no change needed)
+7. **MAX_CONTENT_LENGTH** - Max file size in bytes (100MB default)
+
+**When to Update:**
+- Local: All values correct now ✅
+- Production: Update DATABASE_URL, REDIS_URL, SECRET_KEY, FLASK_ENV
+
+Updated SECRET_KEY with generated secure value.
+
+---
+
+## Prompt 13: Increase Upload Size and Start Story 2
+**User:** "Update the AI_PROMPTS.md and I want the upload max size to be 1 gb, and then lets move ahead with story 2 quickly"
+
+**AI Response:**
+
+Updated MAX_CONTENT_LENGTH:
+- Old: 104857600 bytes (100 MB)
+- New: 1073741824 bytes (1 GB)
+- Updated in both .env and .env.example
+
+Now starting Story 2: CSV Upload & Processing...
+
+Created:
+1. **tasks.py** - Celery task for CSV processing with batch inserts, progress tracking, and error handling
+2. **Updated app.py** - Added /api/upload endpoint and /api/progress endpoint
+3. **test_upload.html** - Simple HTML page for testing uploads
+4. **test_products.csv** - Sample CSV with 3 products for testing
+
+**Debugging Process:**
+- Initial issue: curl and Python requests returning 403 errors
+- Root cause: Circular import issue with tasks.py
+- Solution: Moved task import inside the route function
+- Browser test worked perfectly, showing Flask was responding correctly
+
+**Testing Results:**
+- ✅ Uploaded 500K row CSV file successfully
+- ✅ Celery worker picked up task
+- ✅ Real-time progress tracking working (processed 900 rows)
+- ✅ Batch processing (1000 rows at a time)
+- ⚠️ Progress stuck at 900 rows (investigating)
+
+---
+
+## Prompt 14: Story 2 Complete and Moving to Story 3
+**User:** "it is actually stuck at 900 ig, because refresh is not working, also please keep updating the AI_PROMPTS.md, remember it. and yes lets commit story 2 to github and start with story 3"
+
+**AI Response:**
+
+Progress stuck at 900 rows - likely Celery worker encountered an error. Need to check Terminal 2 logs.
+
+Committing Story 2 to git...
+
+---
+
+## Prompt 15: Commit Story 2 Properly and Debug
+**User:** "I think we need tasks.py and templates as well, right? also keep updating the AI_PROMPTS.md (you have to do this always, I should not have to say it again and again). this should be the first thing in every answer and once we are done with committing and I need to work on debugging the 900 row issue first and then move ahead with the story 3. Also: please cleanup the test files once you are done with it, I dont need clutter"
+
+**AI Response:**
+
+Understood! Will always update AI_PROMPTS.md first from now on.
+
+Yes, you're right - tasks.py and templates/ need to be committed. The git status shows:
+- Untracked: tasks.py, test_basic.py, test_flask.py, test_upload.py, test_products.csv, test_upload.html
+
+**Cleanup Plan:**
+- Keep: tasks.py, templates/test_upload.html (needed for Story 2)
+- Delete: test_basic.py, test_flask.py, test_upload.py, test_products.csv (test files)
+
+**Commit commands provided with proper file inclusion.**
+
+**Debug Plan:**
+After commit, will check Celery Terminal 2 logs to see why processing stopped at 900 rows.
 
 ---
 
