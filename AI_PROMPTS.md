@@ -399,4 +399,60 @@ After commit, will check Celery Terminal 2 logs to see why processing stopped at
 
 ---
 
+## Prompt 16: Debugging the 900 Row Issue
+**User:** [Provided Celery logs showing the error]
+
+**AI Response:**
+
+Found the issue! Celery logs show:
+
+**Error:** `duplicate key value violates unique constraint "ix_products_sku"`
+**Detail:** Key (sku)=(INVOLVE-AVAILABLE) already exists
+
+**Root Cause:**
+The CSV has duplicate SKUs within the file itself. When we try to bulk insert 1000 rows, if there are duplicates in that batch, PostgreSQL rejects the entire batch.
+
+**The Problem with Current Code:**
+```python
+# We check if SKU exists in database
+existing = Product.query.filter(...).first()
+if existing:
+    update_existing()
+else:
+    batch.append(new_product)  # But what if duplicate is in the batch itself?
+```
+
+**Solution:**
+Need to track SKUs within the current batch to avoid duplicates before inserting.
+
+**Fix:** Update tasks.py to handle in-batch duplicates.
+
+Fixed by:
+- Adding `batch_skus = set()` to track SKUs in current batch
+- Checking if SKU exists in batch before adding
+- Clearing batch_skus after each commit
+- Logging duplicate SKUs as errors instead of crashing
+
+---
+
+## Prompt 17: Story 3 Planning
+**User:** "were we going to handle this in story 3 then I will wait otherwise I will make a change right now"
+
+**AI Response:**
+
+No, this bug fix is part of Story 2 (CSV upload). We just fixed it now.
+
+**Story 3 is about the Frontend UI** - building the full web interface with:
+- Product list/table with pagination
+- Create/Edit/Delete product forms
+- Filters (by SKU, name, status)
+- Bulk delete with confirmation
+- Webhook management UI
+
+The bug fix we just did (handling duplicate SKUs) is essential for Story 2 to work properly with real data.
+
+**Recommendation:** Commit Story 2 now with the fix, test it works with the full CSV, then move to Story 3.
+
+---
+
 *This document will be updated with each interaction.*

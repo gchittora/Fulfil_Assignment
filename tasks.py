@@ -65,6 +65,7 @@ def process_csv_import(self, file_path):
             
             # Second pass: process in batches
             batch = []
+            batch_skus = set()  # Track SKUs in current batch to avoid duplicates
             batch_size = Config.BATCH_SIZE
             
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -81,7 +82,7 @@ def process_csv_import(self, file_path):
                         # Normalize SKU (case-insensitive)
                         sku = row['sku'].strip().upper()
                         
-                        # Check if product exists
+                        # Check if product exists in database
                         existing = Product.query.filter(
                             db.func.upper(Product.sku) == sku
                         ).first()
@@ -94,6 +95,13 @@ def process_csv_import(self, file_path):
                             existing.updated_at = datetime.utcnow()
                             updated_count += 1
                         else:
+                            # Check if SKU is already in current batch
+                            if sku in batch_skus:
+                                # Skip duplicate within batch
+                                errors.append(f"Row {row_num}: Duplicate SKU {sku} in file")
+                                error_count += 1
+                                continue
+                            
                             # Create new product
                             product = Product(
                                 sku=sku,
@@ -103,6 +111,7 @@ def process_csv_import(self, file_path):
                                 active=True
                             )
                             batch.append(product)
+                            batch_skus.add(sku)  # Track this SKU
                             created_count += 1
                         
                         processed_rows += 1
@@ -112,6 +121,7 @@ def process_csv_import(self, file_path):
                             db.session.bulk_save_objects(batch)
                             db.session.commit()
                             batch = []
+                            batch_skus = set()  # Clear batch SKU tracker
                         
                         # Update progress every 100 rows
                         if processed_rows % 100 == 0:
