@@ -268,4 +268,54 @@ Now ready to commit to git and move to Story 2!
 
 ---
 
+## Prompt 11: Understanding .env.example vs .env
+**User:** "Now before we move ahead explain to me this file .env.example, I mean I know what .env is but not .env.example and why is it not in gitignore??"
+
+**AI Response:**
+
+**The Problem:** If you commit .env with real passwords to GitHub, everyone can see your secrets (MAJOR SECURITY RISK!)
+
+**The Solution: Two Files**
+
+1. **.env (The Real Secrets)** 🔒
+   - Contains REAL passwords and API keys
+   - In .gitignore (never committed)
+   - Each developer has their own version
+   - Example: `SECRET_KEY=abc123-my-actual-secret-key`
+
+2. **.env.example (The Template)** 📋
+   - Contains placeholder values only
+   - NOT in .gitignore (safe to commit)
+   - Shows WHAT variables are needed
+   - Example: `SECRET_KEY=your-secret-key-change-in-production`
+
+**Why .env.example is NOT in .gitignore:**
+- Acts as documentation (shows what variables are needed)
+- Helps onboarding (new developers know what to configure)
+- No security risk (contains no real secrets)
+- Safe to share publicly on GitHub
+
+**The Workflow:**
+1. Developer creates .env.example (committed to git)
+2. Each person copies it: `cp .env.example .env`
+3. Each person edits .env with their own passwords
+4. .gitignore prevents accidentally committing .env
+
+**Comparison Table:**
+- .env: Real secrets, NOT committed, in .gitignore, each person has their own
+- .env.example: Placeholders, IS committed, NOT in .gitignore, same for everyone
+
+**Analogy:** Think of it like a form:
+- .env.example = Blank form (safe to photocopy)
+- .env = Filled form with your info (keep private)
+
+---
+
+## Prompt 12: Moving to Story 2 and .env Values
+**User:** "please keep updating AI_PROMPTS.md and yes lets move to Story 2 and please tell me about the .env values when to update and how and where I will get them."
+
+**AI Response:** (Explaining .env values and starting Story 2...)
+
+---
+
 *This document will be updated with each interaction.*
