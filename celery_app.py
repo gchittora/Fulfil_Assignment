@@ -2,6 +2,7 @@
 Celery application configuration.
 This is separate from Flask to allow running workers independently.
 """
+import ssl
 from celery import Celery
 from config import Config
 
@@ -14,6 +15,18 @@ def make_celery():
         include=['tasks']  # Import tasks module
     )
     
+    # Configure SSL for Redis if using rediss://
+    broker_use_ssl = None
+    redis_backend_use_ssl = None
+    
+    if Config.REDIS_URL.startswith('rediss://'):
+        broker_use_ssl = {
+            'ssl_cert_reqs': ssl.CERT_NONE
+        }
+        redis_backend_use_ssl = {
+            'ssl_cert_reqs': ssl.CERT_NONE
+        }
+    
     celery.conf.update(
         task_serializer='json',
         accept_content=['json'],
@@ -21,6 +34,8 @@ def make_celery():
         timezone='UTC',
         enable_utc=True,
         task_track_started=True,  # Important for progress tracking
+        broker_use_ssl=broker_use_ssl,
+        redis_backend_use_ssl=redis_backend_use_ssl,
     )
     
     return celery
