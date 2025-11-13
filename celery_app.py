@@ -37,16 +37,26 @@ def make_celery():
         broker_use_ssl=broker_use_ssl,
         redis_backend_use_ssl=redis_backend_use_ssl,
         broker_connection_retry_on_startup=True,
-        broker_connection_timeout=5,  # 5 second timeout
-        broker_connection_max_retries=2,  # Only retry twice
+        broker_connection_timeout=3,
+        broker_connection_max_retries=1,
+        task_ignore_result=False,
+        task_store_errors_even_if_ignored=True,
         result_backend_transport_options={
-            'socket_connect_timeout': 5,
-            'socket_timeout': 5,
+            'socket_connect_timeout': 2,
+            'socket_timeout': 2,
+            'socket_keepalive': True,
+            'health_check_interval': 10,
         },
         broker_transport_options={
-            'socket_connect_timeout': 5,
-            'socket_timeout': 5,
+            'socket_connect_timeout': 2,
+            'socket_timeout': 2,
+            'socket_keepalive': True,
+            'health_check_interval': 10,
+            'visibility_timeout': 3600,
+            'max_connections': 10,
         },
+        broker_pool_limit=1,  # Limit connection pool
+        result_expires=3600,
     )
     
     return celery

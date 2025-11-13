@@ -125,23 +125,13 @@ def upload_file():
         filename = secure_filename(file.filename)
         
         # Try to queue Celery task with CSV content (not file path)
-        # Use signal to timeout the operation
-        import signal
-        
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Celery connection timeout")
-        
         try:
-            # Set 5 second timeout
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(5)
-            
+            # Queue task asynchronously - don't wait for confirmation
             task = process_csv_import.apply_async(
                 args=[csv_content, filename],
-                expires=3600
+                expires=3600,
+                retry=False  # Don't retry on failure
             )
-            
-            signal.alarm(0)  # Cancel alarm
             
             return jsonify({
                 'task_id': task.id,
@@ -149,16 +139,7 @@ def upload_file():
                 'message': 'File uploaded successfully. Processing started.'
             }), 202
             
-        except TimeoutError as e:
-            signal.alarm(0)  # Cancel alarm
-            app.logger.error(f"Celery connection timeout: {str(e)}")
-            return jsonify({
-                'error': 'Task queue connection timeout',
-                'details': 'Could not connect to the background worker within 5 seconds. Check if Redis and worker are running.',
-                'redis_configured': bool(Config.REDIS_URL)
-            }), 503
         except Exception as celery_error:
-            signal.alarm(0)  # Cancel alarm
             app.logger.error(f"Celery error: {str(celery_error)}")
             return jsonify({
                 'error': 'Task queue error',
