@@ -59,8 +59,8 @@ def health_celery():
     """Check if Celery worker is available"""
     try:
         from celery_app import celery
-        # Try to ping the worker
-        inspect = celery.control.inspect()
+        # Try to ping the worker with timeout
+        inspect = celery.control.inspect(timeout=3.0)
         stats = inspect.stats()
         
         if stats:
@@ -72,13 +72,27 @@ def health_celery():
         else:
             return jsonify({
                 'status': 'unhealthy',
-                'error': 'No workers available'
+                'error': 'No workers available',
+                'redis_url': Config.REDIS_URL.split('@')[-1] if '@' in Config.REDIS_URL else 'localhost'
             }), 503
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
-            'error': str(e)
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'redis_url': Config.REDIS_URL.split('@')[-1] if '@' in Config.REDIS_URL else 'localhost'
         }), 503
+
+
+@app.route('/debug/config')
+def debug_config():
+    """Debug endpoint to check configuration (remove in production)"""
+    return jsonify({
+        'redis_url_host': Config.REDIS_URL.split('@')[-1] if '@' in Config.REDIS_URL else Config.REDIS_URL.split('//')[1].split('/')[0],
+        'database_connected': db.engine.url.database,
+        'upload_folder': Config.UPLOAD_FOLDER,
+        'batch_size': Config.BATCH_SIZE
+    })
 
 
 # ============================================================================

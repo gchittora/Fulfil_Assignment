@@ -36,6 +36,9 @@ def make_celery():
         task_track_started=True,  # Important for progress tracking
         broker_use_ssl=broker_use_ssl,
         redis_backend_use_ssl=redis_backend_use_ssl,
+        broker_connection_retry_on_startup=True,
+        broker_connection_timeout=10,
+        broker_connection_max_retries=3,
     )
     
     return celery
