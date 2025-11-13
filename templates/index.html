@@ -9,8 +9,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🚀 Product Importer</h1>
-            <p>Import and manage up to 500,000 products</p>
+            <h1>Product Importer</h1>
         </header>
 
         <!-- Tab Navigation -->
@@ -29,7 +28,7 @@
                 <div class="upload-area" id="upload-area">
                     <input type="file" id="file-input" accept=".csv" style="display: none;">
                     <div class="upload-prompt">
-                        <span class="upload-icon">📁</span>
+                        <span class="upload-icon">[UPLOAD]</span>
                         <p>Click to select CSV file or drag and drop</p>
                         <small>Maximum file size: 1GB</small>
                     </div>
@@ -48,7 +47,7 @@
                     <p id="progress-text">Initializing...</p>
                     <div id="progress-stats" class="stats"></div>
                     <button id="stop-btn" class="btn btn-danger" onclick="stopImport()" style="margin-top: 20px;">
-                        ⏹️ Force Stop Import
+                        Force Stop Import
                     </button>
                 </div>
 
@@ -76,7 +75,7 @@
                         <option value="true">Active</option>
                         <option value="false">Inactive</option>
                     </select>
-                    <button class="btn btn-danger" onclick="confirmBulkDelete()">🗑️ Delete All</button>
+                    <button class="btn btn-danger" onclick="confirmBulkDelete()">Delete All</button>
                 </div>
 
                 <!-- Products Table -->
