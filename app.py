@@ -95,6 +95,37 @@ def debug_config():
     })
 
 
+@app.route('/debug/redis')
+def debug_redis():
+    """Test Redis connection with timeout"""
+    import redis
+    import time
+    
+    start = time.time()
+    try:
+        r = redis.from_url(
+            Config.REDIS_URL,
+            socket_connect_timeout=2,
+            socket_timeout=2
+        )
+        r.ping()
+        elapsed = time.time() - start
+        return jsonify({
+            'status': 'success',
+            'message': 'Redis connection successful',
+            'elapsed_seconds': round(elapsed, 3)
+        })
+    except Exception as e:
+        elapsed = time.time() - start
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'elapsed_seconds': round(elapsed, 3),
+            'redis_host': Config.REDIS_URL.split('@')[-1].split('/')[0] if '@' in Config.REDIS_URL else 'unknown'
+        }), 500
+
+
 # ============================================================================
 # Product Import Routes
 # ============================================================================
@@ -107,6 +138,7 @@ def upload_file():
     """
     # Import here to avoid circular import issues
     from tasks import process_csv_import
+    import redis
     
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -123,6 +155,25 @@ def upload_file():
         # Read CSV content into memory
         csv_content = file.read().decode('utf-8')
         filename = secure_filename(file.filename)
+        
+        # First, quickly test Redis connection
+        try:
+            r = redis.from_url(
+                Config.REDIS_URL,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                socket_keepalive=True,
+                health_check_interval=30
+            )
+            r.ping()
+            app.logger.info("Redis connection successful")
+        except Exception as redis_error:
+            app.logger.error(f"Redis connection failed: {str(redis_error)}")
+            return jsonify({
+                'error': 'Cannot connect to Redis',
+                'details': str(redis_error),
+                'redis_host': Config.REDIS_URL.split('@')[-1].split('/')[0] if '@' in Config.REDIS_URL else 'unknown'
+            }), 503
         
         # Try to queue Celery task with CSV content (not file path)
         try:
