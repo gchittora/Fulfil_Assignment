@@ -126,20 +126,46 @@ def upload_file():
         
         # Try to queue Celery task with CSV content (not file path)
         try:
-            task = process_csv_import.delay(csv_content, filename)
+            import redis
+            from celery_app import celery
+            
+            # First, test Redis connection directly
+            redis_client = redis.from_url(Config.REDIS_URL, socket_connect_timeout=3, socket_timeout=3)
+            redis_client.ping()
+            
+            # If Redis is reachable, queue the task
+            task = process_csv_import.apply_async(
+                args=[csv_content, filename],
+                expires=3600
+            )
             
             return jsonify({
                 'task_id': task.id,
                 'status': 'queued',
                 'message': 'File uploaded successfully. Processing started.'
             }), 202
+            
+        except redis.exceptions.ConnectionError as e:
+            app.logger.error(f"Redis connection failed: {str(e)}")
+            return jsonify({
+                'error': 'Cannot connect to Redis',
+                'details': 'The task queue (Redis) is not reachable from the web service.',
+                'technical_details': str(e)
+            }), 503
+        except redis.exceptions.TimeoutError as e:
+            app.logger.error(f"Redis timeout: {str(e)}")
+            return jsonify({
+                'error': 'Redis connection timeout',
+                'details': 'The task queue is not responding.',
+                'technical_details': str(e)
+            }), 503
         except Exception as celery_error:
             # Celery is unavailable - log the error and return helpful message
-            app.logger.error(f"Celery connection failed: {str(celery_error)}")
+            app.logger.error(f"Celery error: {str(celery_error)}")
             return jsonify({
-                'error': 'Task queue is currently unavailable',
-                'details': 'The background worker service is not responding. Please try again in a few moments or contact support.',
-                'technical_details': str(celery_error)
+                'error': 'Task queue error',
+                'details': str(celery_error),
+                'error_type': type(celery_error).__name__
             }), 503
     
     except UnicodeDecodeError:
