@@ -74,9 +74,7 @@ def process_csv_import(self, csv_content, filename):
             batch_size = Config.BATCH_SIZE
             
             for row_num, row in enumerate(rows, 1):
-                
-                for row_num, row in enumerate(reader, 1):
-                    try:
+                try:
                         # Validate required fields
                         if not row.get('sku') or not row.get('name'):
                             errors.append(f"Row {row_num}: Missing SKU or name")
@@ -120,36 +118,36 @@ def process_csv_import(self, csv_content, filename):
                         
                         processed_rows += 1
                         
-                        # Commit batch when it reaches batch_size
-                        if len(batch) >= batch_size:
-                            db.session.bulk_save_objects(batch)
-                            db.session.commit()
-                            batch = []
-                            batch_skus = set()  # Clear batch SKU tracker
-                        
-                        # Update progress every 100 rows
-                        if processed_rows % 100 == 0:
-                            self.update_state(
-                                state='PROGRESS',
-                                meta={
-                                    'current': processed_rows,
-                                    'total': total_rows,
-                                    'status': f'Processing... {processed_rows}/{total_rows}',
-                                    'created': created_count,
-                                    'updated': updated_count,
-                                    'errors': error_count
-                                }
-                            )
+                    # Commit batch when it reaches batch_size
+                    if len(batch) >= batch_size:
+                        db.session.bulk_save_objects(batch)
+                        db.session.commit()
+                        batch = []
+                        batch_skus = set()  # Clear batch SKU tracker
                     
-                    except Exception as e:
-                        errors.append(f"Row {row_num}: {str(e)}")
-                        error_count += 1
-                        continue
+                    # Update progress every 100 rows
+                    if processed_rows % 100 == 0:
+                        self.update_state(
+                            state='PROGRESS',
+                            meta={
+                                'current': processed_rows,
+                                'total': total_rows,
+                                'status': f'Processing... {processed_rows}/{total_rows}',
+                                'created': created_count,
+                                'updated': updated_count,
+                                'errors': error_count
+                            }
+                        )
                 
-                # Commit remaining batch
-                if batch:
-                    db.session.bulk_save_objects(batch)
-                    db.session.commit()
+                except Exception as e:
+                    errors.append(f"Row {row_num}: {str(e)}")
+                    error_count += 1
+                    continue
+            
+            # Commit remaining batch
+            if batch:
+                db.session.bulk_save_objects(batch)
+                db.session.commit()
             
             return {
                 'status': 'completed',

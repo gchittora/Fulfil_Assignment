@@ -92,14 +92,23 @@ async function uploadFile() {
             body: formData
         });
         
-        const data = await response.json();
+        // Check if response has content before parsing JSON
+        const text = await response.text();
+        let data;
+        
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            throw new Error(`Server returned invalid response: ${text.substring(0, 100)}`);
+        }
         
         if (response.ok) {
             currentTaskId = data.task_id;
             showProgress();
             startAutoRefresh();
         } else {
-            alert('Upload failed: ' + data.error);
+            const errorMsg = data.error || data.details || `Server error (${response.status})`;
+            alert('Upload failed: ' + errorMsg);
             resetUpload();
         }
     } catch (error) {

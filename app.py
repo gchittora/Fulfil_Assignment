@@ -54,6 +54,33 @@ def health():
     return jsonify({'status': 'healthy'})
 
 
+@app.route('/health/celery')
+def health_celery():
+    """Check if Celery worker is available"""
+    try:
+        from celery_app import celery
+        # Try to ping the worker
+        inspect = celery.control.inspect()
+        stats = inspect.stats()
+        
+        if stats:
+            return jsonify({
+                'status': 'healthy',
+                'workers': len(stats),
+                'worker_info': stats
+            })
+        else:
+            return jsonify({
+                'status': 'unhealthy',
+                'error': 'No workers available'
+            }), 503
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
+
+
 # ============================================================================
 # Product Import Routes
 # ============================================================================
@@ -83,17 +110,29 @@ def upload_file():
         csv_content = file.read().decode('utf-8')
         filename = secure_filename(file.filename)
         
-        # Queue Celery task with CSV content (not file path)
-        task = process_csv_import.delay(csv_content, filename)
-        
-        return jsonify({
-            'task_id': task.id,
-            'status': 'queued',
-            'message': 'File uploaded successfully. Processing started.'
-        }), 202
+        # Try to queue Celery task with CSV content (not file path)
+        try:
+            task = process_csv_import.delay(csv_content, filename)
+            
+            return jsonify({
+                'task_id': task.id,
+                'status': 'queued',
+                'message': 'File uploaded successfully. Processing started.'
+            }), 202
+        except Exception as celery_error:
+            # Celery is unavailable - log the error and return helpful message
+            app.logger.error(f"Celery connection failed: {str(celery_error)}")
+            return jsonify({
+                'error': 'Task queue is currently unavailable',
+                'details': 'The background worker service is not responding. Please try again in a few moments or contact support.',
+                'technical_details': str(celery_error)
+            }), 503
     
+    except UnicodeDecodeError:
+        return jsonify({'error': 'Invalid CSV file encoding. Please use UTF-8 encoding.'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Upload error: {str(e)}")
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 
 @app.route('/api/progress/<task_id>', methods=['GET'])
