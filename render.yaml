@@ -15,7 +15,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: product-importer-redis
-          type: redis
+          type: pserv
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
@@ -38,13 +38,20 @@ services:
       - key: REDIS_URL
         fromService:
           name: product-importer-redis
-          type: redis
+          type: pserv
           property: connectionString
+
+  # Redis Service
+  - type: pserv
+    name: product-importer-redis
+    env: docker
+    dockerCommand: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+    disk:
+      name: redis-data
+      mountPath: /data
+      sizeGB: 1
 
 databases:
   - name: product-importer-db
     databaseName: product_importer
     user: product_importer_user
-
-  - name: product-importer-redis
-    type: redis
