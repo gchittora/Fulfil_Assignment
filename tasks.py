@@ -75,49 +75,49 @@ def process_csv_import(self, csv_content, filename):
             
             for row_num, row in enumerate(rows, 1):
                 try:
-                        # Validate required fields
-                        if not row.get('sku') or not row.get('name'):
-                            errors.append(f"Row {row_num}: Missing SKU or name")
+                    # Validate required fields
+                    if not row.get('sku') or not row.get('name'):
+                        errors.append(f"Row {row_num}: Missing SKU or name")
+                        error_count += 1
+                        continue
+                    
+                    # Normalize SKU (case-insensitive)
+                    sku = row['sku'].strip().upper()
+                    
+                    # Check if product exists in database
+                    existing = Product.query.filter(
+                        db.func.upper(Product.sku) == sku
+                    ).first()
+                    
+                    if existing:
+                        # Update existing product
+                        existing.name = row['name'].strip()
+                        existing.description = row.get('description', '').strip()
+                        existing.price = float(row['price']) if row.get('price') else None
+                        existing.updated_at = datetime.utcnow()
+                        updated_count += 1
+                    else:
+                        # Check if SKU is already in current batch
+                        if sku in batch_skus:
+                            # Skip duplicate within batch
+                            errors.append(f"Row {row_num}: Duplicate SKU {sku} in file")
                             error_count += 1
                             continue
                         
-                        # Normalize SKU (case-insensitive)
-                        sku = row['sku'].strip().upper()
-                        
-                        # Check if product exists in database
-                        existing = Product.query.filter(
-                            db.func.upper(Product.sku) == sku
-                        ).first()
-                        
-                        if existing:
-                            # Update existing product
-                            existing.name = row['name'].strip()
-                            existing.description = row.get('description', '').strip()
-                            existing.price = float(row['price']) if row.get('price') else None
-                            existing.updated_at = datetime.utcnow()
-                            updated_count += 1
-                        else:
-                            # Check if SKU is already in current batch
-                            if sku in batch_skus:
-                                # Skip duplicate within batch
-                                errors.append(f"Row {row_num}: Duplicate SKU {sku} in file")
-                                error_count += 1
-                                continue
-                            
-                            # Create new product
-                            product = Product(
-                                sku=sku,
-                                name=row['name'].strip(),
-                                description=row.get('description', '').strip(),
-                                price=float(row['price']) if row.get('price') else None,
-                                active=True
-                            )
-                            batch.append(product)
-                            batch_skus.add(sku)  # Track this SKU
-                            created_count += 1
-                        
-                        processed_rows += 1
-                        
+                        # Create new product
+                        product = Product(
+                            sku=sku,
+                            name=row['name'].strip(),
+                            description=row.get('description', '').strip(),
+                            price=float(row['price']) if row.get('price') else None,
+                            active=True
+                        )
+                        batch.append(product)
+                        batch_skus.add(sku)  # Track this SKU
+                        created_count += 1
+                    
+                    processed_rows += 1
+                    
                     # Commit batch when it reaches batch_size
                     if len(batch) >= batch_size:
                         db.session.bulk_save_objects(batch)
