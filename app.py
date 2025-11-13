@@ -125,19 +125,23 @@ def upload_file():
         filename = secure_filename(file.filename)
         
         # Try to queue Celery task with CSV content (not file path)
+        # Use signal to timeout the operation
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Celery connection timeout")
+        
         try:
-            import redis
-            from celery_app import celery
+            # Set 5 second timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(5)
             
-            # First, test Redis connection directly
-            redis_client = redis.from_url(Config.REDIS_URL, socket_connect_timeout=3, socket_timeout=3)
-            redis_client.ping()
-            
-            # If Redis is reachable, queue the task
             task = process_csv_import.apply_async(
                 args=[csv_content, filename],
                 expires=3600
             )
+            
+            signal.alarm(0)  # Cancel alarm
             
             return jsonify({
                 'task_id': task.id,
@@ -145,22 +149,16 @@ def upload_file():
                 'message': 'File uploaded successfully. Processing started.'
             }), 202
             
-        except redis.exceptions.ConnectionError as e:
-            app.logger.error(f"Redis connection failed: {str(e)}")
+        except TimeoutError as e:
+            signal.alarm(0)  # Cancel alarm
+            app.logger.error(f"Celery connection timeout: {str(e)}")
             return jsonify({
-                'error': 'Cannot connect to Redis',
-                'details': 'The task queue (Redis) is not reachable from the web service.',
-                'technical_details': str(e)
-            }), 503
-        except redis.exceptions.TimeoutError as e:
-            app.logger.error(f"Redis timeout: {str(e)}")
-            return jsonify({
-                'error': 'Redis connection timeout',
-                'details': 'The task queue is not responding.',
-                'technical_details': str(e)
+                'error': 'Task queue connection timeout',
+                'details': 'Could not connect to the background worker within 5 seconds. Check if Redis and worker are running.',
+                'redis_configured': bool(Config.REDIS_URL)
             }), 503
         except Exception as celery_error:
-            # Celery is unavailable - log the error and return helpful message
+            signal.alarm(0)  # Cancel alarm
             app.logger.error(f"Celery error: {str(celery_error)}")
             return jsonify({
                 'error': 'Task queue error',
