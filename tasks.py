@@ -21,19 +21,19 @@ def create_app():
 
 
 @celery.task(bind=True)
-def process_csv_import(self, file_path):
+def process_csv_import(self, csv_content, filename):
     """
-    Process CSV file and import products into database.
+    Process CSV content and import products into database.
     
     This task:
-    1. Reads CSV in chunks to avoid memory issues
+    1. Reads CSV from string content (not file)
     2. Validates data
     3. Performs upserts (insert or update based on SKU)
     4. Updates progress in real-time
-    5. Cleans up temp file
     
     Args:
-        file_path: Path to uploaded CSV file
+        csv_content: CSV file content as string
+        filename: Original filename (for logging)
         
     Returns:
         dict: Summary of import (total, created, updated, errors)
@@ -49,9 +49,14 @@ def process_csv_import(self, file_path):
         errors = []
         
         try:
+            # Parse CSV from string content
+            import io
+            csv_file = io.StringIO(csv_content)
+            
             # First pass: count total rows for progress calculation
-            with open(file_path, 'r', encoding='utf-8') as f:
-                total_rows = sum(1 for _ in csv.DictReader(f))
+            reader = csv.DictReader(csv_file)
+            rows = list(reader)  # Read all rows into memory
+            total_rows = len(rows)
             
             # Update initial progress
             self.update_state(
@@ -63,13 +68,12 @@ def process_csv_import(self, file_path):
                 }
             )
             
-            # Second pass: process in batches
+            # Process in batches
             batch = []
             batch_skus = set()  # Track SKUs in current batch to avoid duplicates
             batch_size = Config.BATCH_SIZE
             
-            with open(file_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
+            for row_num, row in enumerate(rows, 1):
                 
                 for row_num, row in enumerate(reader, 1):
                     try:
@@ -147,10 +151,6 @@ def process_csv_import(self, file_path):
                     db.session.bulk_save_objects(batch)
                     db.session.commit()
             
-            # Clean up uploaded file
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            
             return {
                 'status': 'completed',
                 'total': total_rows,
@@ -162,10 +162,6 @@ def process_csv_import(self, file_path):
             }
         
         except Exception as e:
-            # Clean up on error
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            
             return {
                 'status': 'failed',
                 'error': str(e)

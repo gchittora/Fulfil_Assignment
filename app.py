@@ -79,13 +79,12 @@ def upload_file():
         return jsonify({'error': 'Only CSV files are allowed'}), 400
     
     try:
-        # Save file securely
+        # Read CSV content into memory
+        csv_content = file.read().decode('utf-8')
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
         
-        # Queue Celery task
-        task = process_csv_import.delay(filepath)
+        # Queue Celery task with CSV content (not file path)
+        task = process_csv_import.delay(csv_content, filename)
         
         return jsonify({
             'task_id': task.id,
