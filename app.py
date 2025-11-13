@@ -6,7 +6,7 @@ import os
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from config import Config
-from models import db
+from models import db, Product, Webhook
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -41,11 +41,11 @@ def index():
     })
 
 
-@app.route('/test')
-def test_page():
-    """Test upload page"""
+@app.route('/ui')
+def ui():
+    """Main UI"""
     from flask import render_template
-    return render_template('test_upload.html')
+    return render_template('index.html')
 
 
 @app.route('/health')
@@ -125,14 +125,201 @@ def get_progress(task_id):
             'state': task.state,
             'result': task.info
         }
-    else:
-        # Task failed
+    elif task.state == 'FAILURE':
+        # Task failed with exception
         response = {
             'state': task.state,
-            'status': str(task.info)
+            'status': 'Task failed',
+            'error': str(task.info) if task.info else 'Unknown error'
+        }
+    else:
+        # Other states (RETRY, REVOKED, etc.)
+        response = {
+            'state': task.state,
+            'status': str(task.info) if task.info else 'Task in unknown state'
         }
     
     return jsonify(response)
+
+
+@app.route('/api/cancel/<task_id>', methods=['POST'])
+def cancel_task(task_id):
+    """Cancel/revoke a running task"""
+    from celery_app import celery
+    celery.control.revoke(task_id, terminate=True, signal='SIGKILL')
+    return jsonify({'message': 'Task cancelled'})
+
+
+# ============================================================================
+# Product CRUD Routes
+# ============================================================================
+
+@app.route('/api/products', methods=['GET'])
+def get_products():
+    """Get paginated list of products with optional filters"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    sku_filter = request.args.get('sku', '')
+    name_filter = request.args.get('name', '')
+    active_filter = request.args.get('active', '')
+    
+    query = Product.query
+    
+    if sku_filter:
+        query = query.filter(Product.sku.ilike(f'%{sku_filter}%'))
+    if name_filter:
+        query = query.filter(Product.name.ilike(f'%{name_filter}%'))
+    if active_filter:
+        active_bool = active_filter.lower() == 'true'
+        query = query.filter(Product.active == active_bool)
+    
+    pagination = query.order_by(Product.created_at.desc()).paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+    
+    return jsonify({
+        'products': [p.to_dict() for p in pagination.items],
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': page
+    })
+
+
+@app.route('/api/products/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    """Get single product by ID"""
+    product = Product.query.get_or_404(product_id)
+    return jsonify(product.to_dict())
+
+
+@app.route('/api/products', methods=['POST'])
+def create_product():
+    """Create new product"""
+    data = request.get_json()
+    
+    if not data.get('sku') or not data.get('name'):
+        return jsonify({'error': 'SKU and name are required'}), 400
+    
+    sku = data['sku'].strip().upper()
+    existing = Product.query.filter(db.func.upper(Product.sku) == sku).first()
+    if existing:
+        return jsonify({'error': 'Product with this SKU already exists'}), 409
+    
+    product = Product(
+        sku=sku,
+        name=data['name'].strip(),
+        description=data.get('description', '').strip(),
+        price=data.get('price'),
+        active=data.get('active', True)
+    )
+    
+    db.session.add(product)
+    db.session.commit()
+    
+    return jsonify(product.to_dict()), 201
+
+
+@app.route('/api/products/<int:product_id>', methods=['PUT'])
+def update_product(product_id):
+    """Update existing product"""
+    product = Product.query.get_or_404(product_id)
+    data = request.get_json()
+    
+    if 'name' in data:
+        product.name = data['name'].strip()
+    if 'description' in data:
+        product.description = data['description'].strip()
+    if 'price' in data:
+        product.price = data['price']
+    if 'active' in data:
+        product.active = data['active']
+    
+    db.session.commit()
+    
+    return jsonify(product.to_dict())
+
+
+@app.route('/api/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    """Delete single product"""
+    product = Product.query.get_or_404(product_id)
+    db.session.delete(product)
+    db.session.commit()
+    
+    return jsonify({'message': 'Product deleted successfully'})
+
+
+@app.route('/api/products/bulk-delete', methods=['DELETE'])
+def bulk_delete_products():
+    """Delete all products"""
+    count = Product.query.delete()
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Successfully deleted {count} products',
+        'count': count
+    })
+
+
+# ============================================================================
+# Webhook Routes
+# ============================================================================
+
+@app.route('/api/webhooks', methods=['GET'])
+def get_webhooks():
+    """Get all webhooks"""
+    webhooks = Webhook.query.all()
+    return jsonify([w.to_dict() for w in webhooks])
+
+
+@app.route('/api/webhooks', methods=['POST'])
+def create_webhook():
+    """Create new webhook"""
+    data = request.get_json()
+    
+    if not data.get('url') or not data.get('event_type'):
+        return jsonify({'error': 'URL and event_type are required'}), 400
+    
+    webhook = Webhook(
+        url=data['url'],
+        event_type=data['event_type'],
+        enabled=data.get('enabled', True)
+    )
+    
+    db.session.add(webhook)
+    db.session.commit()
+    
+    return jsonify(webhook.to_dict()), 201
+
+
+@app.route('/api/webhooks/<int:webhook_id>', methods=['PUT'])
+def update_webhook(webhook_id):
+    """Update webhook"""
+    webhook = Webhook.query.get_or_404(webhook_id)
+    data = request.get_json()
+    
+    if 'url' in data:
+        webhook.url = data['url']
+    if 'event_type' in data:
+        webhook.event_type = data['event_type']
+    if 'enabled' in data:
+        webhook.enabled = data['enabled']
+    
+    db.session.commit()
+    
+    return jsonify(webhook.to_dict())
+
+
+@app.route('/api/webhooks/<int:webhook_id>', methods=['DELETE'])
+def delete_webhook(webhook_id):
+    """Delete webhook"""
+    webhook = Webhook.query.get_or_404(webhook_id)
+    db.session.delete(webhook)
+    db.session.commit()
+    
+    return jsonify({'message': 'Webhook deleted successfully'})
 
 
 # ============================================================================
